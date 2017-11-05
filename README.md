@@ -1,6 +1,7 @@
 # CarND-Path-Planning-Project
 Self-Driving Car Engineer Nanodegree Program
-   
+
+![image](Capture.png)
 # Reflection
 ## The code model for generating path is described in details**
 
@@ -118,7 +119,7 @@ This can also be used to record if the lanes adjoining the current_lane to the v
 
     2. If there is no car, we can then increase the speed of our ego vehicle a little keeping the jerk to minimum. We will repeat it till it reaches the speed limit. I have kept the max limit on speed to be 49.5 because I have observed that sometime speed limit is crossed if I keep the limit to 50.
                   
-          ref_vel += 0.224; // Increasing speed
+            ref_vel += 0.224; // Increasing speed
     3. If there is a car, we will check if its speed is faster than our ego vehicle and relative distance between then.
         - If the car is faster, we will increase the speed.
         - If the car is slower and relative distance between them is higher than our threshold, we will reduce the speed of our ego vehicle.
@@ -133,7 +134,7 @@ The car is able to drive itself on the given highway without any incident as sho
 
 ![image](https://s3.gifgif.io/Xy35Fi.gif)
 
-But, I have observed that when the highway becomes too crowded or other cars make too frequest lane changes then collision may happen or jerk exceeds. This could be resolved by futher fine tuning the model further and using better cost function models.
+But, I have observed that when the highway becomes too crowded or other cars make too frequest lane changes then collision may happen or jerk exceeds due to hard break scenarios. This could be resolved by futher fine tuning the model further and using better cost function models.
 
 
 ---
