@@ -1,6 +1,144 @@
 # CarND-Path-Planning-Project
 Self-Driving Car Engineer Nanodegree Program
    
+# Reflection
+## The code model for generating path is described in details**
+
+The whole process of finding the path can be borken into following steps:
+1. Processing the sensor_fusion data to visualize the position of other cars with respect to our ego vehicle.
+This can also be used to record if the lanes adjoining the current_lane to the vehicle is free or not.
+
+                  for ( int i = 0; i < sensor_fusion.size(); i++)
+                    {
+                        float s = sensor_fusion[i][5]; 
+                        float d = sensor_fusion[i][6];
+
+                        if ((d < (2 + 4 * (lane - 1) + 2)) && (d > (2 + 4 * (lane - 1) - 2)))
+                        {
+                            // The car is in the left lane to the vehicle
+                            if (abs(s - car_s) < min_safe_dist)
+                            {
+                                is_left_lane_clear = false;
+                            }
+                        } 
+                        else if ((d < (2 + 4 * (lane + 1) + 2)) && (d > (2 + 4 * (lane + 1) -2)))
+                        {
+                            // The car is in the right lane to the vehicle
+                            if (abs(s - car_s) < min_safe_dist)
+                            {
+                                is_right_lane_clear = false;
+                            }
+                        }
+
+                        if (lane == 0)
+                        {
+                            is_left_lane_clear = false;
+                        }
+                        else if (lane == 2)
+                        {
+                            is_right_lane_clear = false;
+                        }
+                    }
+
+2. After getting an understanding of the surrounding environment. We will now focus on the current lane. We will check if there is any traffic or car ahead of our ego vehicle.
+
+      1. In This portion I am checking if there is a car in the current lane. If there is a car then whether that car is too close or not. Also, I am keeping track of whether any lanes are clear for changing lane or not. Apart from these I have also added a boolean to check for **hard break** scenarios. The car would hard break if the car is very close. This might increase the jerk, but would help in avoiding colision with the other cars. I included this keeping in mind that avoiding collision should take preference over the comfort.
+
+                  for (int i = 0; i < sensor_fusion.size(); i++)
+                    {
+                        float d = sensor_fusion[i][6];
+
+                        // Check for traffic in the current lane
+                        if (d < (2 + 4 * lane + 2) && d > (2 + 4 * lane - 2))
+                        {
+
+                            // Find the velocity of the front car
+                            double vx = sensor_fusion[i][3];
+                            double vy = sensor_fusion[i][4];
+                            double check_car_speed = sqrt(vx*vx + vy*vy);
+                            double check_car_s = sensor_fusion[i][5];
+
+                            check_car_s += (double)prev_path_size * 0.02 * check_car_speed;
+                            double check_distance = check_car_s - car_s;    // Distance to the car in front
+
+                            if (check_car_s > car_s && check_distance < min_safe_dist + 20)
+                            {
+                                is_car_too_close = true;
+                                front_car_speed = check_car_speed;
+
+                                if (lane > 0 && lane < 2)
+                                {
+                                    if (is_left_lane_clear)
+                                    {
+                                        lane -= 1;  // Should change lane to left
+                                    }
+                                    else if (is_right_lane_clear)
+                                    {
+                                        lane += 1;  // Should change lane to right
+                                    }
+                                    else
+                                    {
+                                        // No lane is empty, our ego vehicle should reduce its speed
+                                        should_follow_current_lane = true;
+                                    }
+                                }
+                                else if (lane == 0)
+                                {
+                                    if (is_right_lane_clear)
+                                    {
+                                        lane += 1;
+                                    }
+                                    else 
+                                    {
+                                        should_follow_current_lane = true;
+                                    }
+                                }
+                                else
+                                {
+                                    if (is_left_lane_clear)
+                                    {
+                                        lane -= 1;
+                                    }
+                                    else
+                                    {
+                                        should_follow_current_lane = true;
+                                    }
+                                }
+
+                                // check if hard break is necessary
+                                if (check_distance > 0 && check_distance < min_safe_dist / 4.0) {
+                                    should_hard_break = true;
+                                } else {
+                                    should_hard_break = false;
+                                }
+                            }
+                            
+                        }
+                    }
+
+    2. If there is no car, we can then increase the speed of our ego vehicle a little keeping the jerk to minimum. We will repeat it till it reaches the speed limit. I have kept the max limit on speed to be 49.5 because I have observed that sometime speed limit is crossed if I keep the limit to 50.
+                  
+          ref_vel += 0.224; // Increasing speed
+    3. If there is a car, we will check if its speed is faster than our ego vehicle and relative distance between then.
+        - If the car is faster, we will increase the speed.
+        - If the car is slower and relative distance between them is higher than our threshold, we will reduce the speed of our ego vehicle.
+        - If the car is slower and realtive distance between then is lower than our threshold, we will then look if there is any free lane available adjacent to the current lane.
+          - If there is a free lane, we will try to create a lane change path for our ego vehicle. The lane changing process consists of creating a **spline curve** with points from previous path and added new points to it. This helps the card in making smooth transtion from current lane to destination lane.
+          - If there is no free lane, we will recduce the speed of our ego vehicle further wait for any other lane to free up.
+          - If the distance between the car infront is dangerously closed, our ego vehicle will perform hard break to avoid collision
+
+## Conclusion
+
+The car is able to drive itself on the given highway without any incident as shown in the video posted below and change lane whenever available and necessary.
+
+![image](https://s3.gifgif.io/Xy35Fi.gif)
+
+But, I have observed that when the highway becomes too crowded or other cars make too frequest lane changes then collision may happen or jerk exceeds. This could be resolved by futher fine tuning the model further and using better cost function models.
+
+
+---
+
+
 ### Simulator.
 You can download the Term3 Simulator which contains the Path Planning Project from the [releases tab (https://github.com/udacity/self-driving-car-sim/releases).
 
@@ -68,19 +206,19 @@ A really helpful resource for doing this project and creating smooth trajectorie
 
 ## Dependencies
 
-* cmake >= 3.5
- * All OSes: [click here for installation instructions](https://cmake.org/install/)
-* make >= 4.1
-  * Linux: make is installed by default on most Linux distros
-  * Mac: [install Xcode command line tools to get make](https://developer.apple.com/xcode/features/)
-  * Windows: [Click here for installation instructions](http://gnuwin32.sourceforge.net/packages/make.htm)
-* gcc/g++ >= 5.4
-  * Linux: gcc / g++ is installed by default on most Linux distros
-  * Mac: same deal as make - [install Xcode command line tools]((https://developer.apple.com/xcode/features/)
-  * Windows: recommend using [MinGW](http://www.mingw.org/)
-* [uWebSockets](https://github.com/uWebSockets/uWebSockets)
-  * Run either `install-mac.sh` or `install-ubuntu.sh`.
-  * If you install from source, checkout to commit `e94b6e1`, i.e.
+cmake >= 3.5
+ All OSes: [click here for installation instructions](https://cmake.org/install/)
+make >= 4.1
+  Linux: make is installed by default on most Linux distros
+  Mac: [install Xcode command line tools to get make](https://developer.apple.com/xcode/features/)
+  Windows: [Click here for installation instructions](http://gnuwin32.sourceforge.net/packages/make.htm)
+gcc/g++ >= 5.4
+  Linux: gcc / g++ is installed by default on most Linux distros
+  Mac: same deal as make - [install Xcode command line tools]((https://developer.apple.com/xcode/features/)
+  Windows: recommend using [MinGW](http://www.mingw.org/)
+[uWebSockets](https://github.com/uWebSockets/uWebSockets)
+  Run either `install-mac.sh` or `install-ubuntu.sh`.
+  If you install from source, checkout to commit `e94b6e1`, i.e.
     ```
     git clone https://github.com/uWebSockets/uWebSockets 
     cd uWebSockets
@@ -93,8 +231,8 @@ We've purposefully kept editor configuration files out of this repo in order to
 keep it as simple and environment agnostic as possible. However, we recommend
 using the following settings:
 
-* indent using spaces
-* set tab width to 2 spaces (keeps the matrices in source code aligned)
+indent using spaces
+set tab width to 2 spaces (keeps the matrices in source code aligned)
 
 ## Code Style
 
@@ -120,8 +258,8 @@ appreciate, we'd love to have you add the requisite profile files and
 instructions to ide_profiles/. For example if you wanted to add a VS Code
 profile, you'd add:
 
-* /ide_profiles/vscode/.vscode
-* /ide_profiles/vscode/README.md
+/ide_profiles/vscode/.vscode
+/ide_profiles/vscode/README.md
 
 The README should explain what the profile does, how to take advantage of it,
 and how to install it.
